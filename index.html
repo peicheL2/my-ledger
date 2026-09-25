@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>帳本</title>
+<meta name="description" content="簡單好用的個人記帳本，支援分類、預算提醒與 CSV 匯出。">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#EFEAD9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1A16" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="記帳">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #EFEAD9;
+    --paper-2: #E6DFC9;
+    --ink: #24211A;
+    --ink-soft: #5B5647;
+    --rule: #C9BFA0;
+    --seal: #B23A2E;
+    --seal-dark: #8E2C22;
+    --jade: #4C6B5D;
+    --jade-dark: #35493F;
+    --gold: #A8823C;
+    --card: #F7F3E6;
+    --shadow: rgba(36, 33, 26, 0.16);
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #1B1A16;
+      --paper-2: #232019;
+      --ink: #EDE7D6;
+      --ink-soft: #B4AC96;
+      --rule: #453F30;
+      --card: #242019;
+      --shadow: rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1B1A16;
+    --paper-2: #232019;
+    --ink: #EDE7D6;
+    --ink-soft: #B4AC96;
+    --rule: #453F30;
+    --card: #242019;
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Noto Sans TC', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, var(--rule) 39px, var(--rule) 40px);
+    background-attachment: local;
+  }
+  #app { max-width: 460px; margin: 0 auto; min-height: 100%; position: relative; padding-bottom: 100px; }
+
+  header {
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 22px 14px;
+  }
+  .eyebrow {
+    font-size: 13px;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+    margin: 0 0 2px;
+  }
+  h1 {
+    font-family: 'Noto Serif TC', serif;
+    font-weight: 900;
+    font-size: 30px;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+  .month-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+  }
+  .month-btn {
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-size: 20px;
+    padding: 6px 10px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .month-label {
+    font-family: 'Noto Serif TC', serif;
+    font-weight: 700;
+    font-size: 17px;
+  }
+
+  .ledger-card {
+    margin: 6px 18px 18px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 22px 20px 18px;
+    position: relative;
+    box-shadow: 0 6px 18px var(--shadow);
+  }
+  .ledger-card::before {
+    content: "";
+    position: absolute;
+    left: 34px; top: 0; bottom: 0;
+    width: 1px;
+    background: var(--rule);
+    opacity: 0.6;
+  }
+  .balance-label { font-size: 13px; color: var(--ink-soft); margin: 0 0 4px; padding-left: 30px; }
+  .balance-amt {
+    font-family: 'Noto Serif TC', serif;
+    font-weight: 900;
+    font-size: 40px;
+    margin: 0 0 16px;
+    padding-left: 30px;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  .io-row { display: flex; gap: 22px; padding-left: 30px; }
+  .io-item { flex: 1; }
+  .io-item .k { font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; }
+  .io-item .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .io-item .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  .section-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 4px 22px 10px;
+  }
+  .section-title h2 {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .section-title .count { font-size: 12px; color: var(--ink-soft); }
+
+  .breakdown {
+    margin: 0 22px 22px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 18px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+  }
+  .breakdown.empty { display: block; text-align: center; color: var(--ink-soft); font-size: 14px; padding: 26px 18px; }
+  .donut-wrap { flex-shrink: 0; }
+  .legend { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .legend-row .sw { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .legend-row .name { flex: 1; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .legend-row .pct { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  .day-group { margin: 0 22px 4px; }
+  .day-head {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 2px 6px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--rule);
+  }
+  .tx-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 2px;
+    border-bottom: 1px dashed var(--rule);
+    cursor: pointer;
+  }
+  .tx-icon {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    background: var(--paper-2);
+  }
+  .tx-mid { flex: 1; min-width: 0; }
+  .tx-cat { font-size: 14.5px; font-weight: 500; }
+  .tx-note { font-size: 12px; color: var(--ink-soft); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx-amt { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .tx-amt.expense { color: var(--seal-dark); }
+  .tx-amt.income { color: var(--jade-dark); }
+
+  .section-title .edit-link {
+    background: none; border: none; color: var(--gold); font-size: 12.5px;
+    font-weight: 600; cursor: pointer; padding: 2px 0; font-family: 'Noto Sans TC', sans-serif;
+  }
+
+  .budget-card {
+    margin: 0 22px 22px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 18px;
+  }
+  .budget-card.empty { text-align: center; color: var(--ink-soft); font-size: 13.5px; padding: 26px 18px; line-height: 1.7; }
+  .budget-card.empty .edit-link { display: inline; margin-top: 6px; }
+  .budget-alert {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(178,58,46,0.1);
+    color: var(--seal-dark);
+    border: 1px solid rgba(178,58,46,0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .budget-total-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .budget-total-row .lbl { font-size: 13px; color: var(--ink-soft); }
+  .budget-total-row .val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .budget-total-row .val.over { color: var(--seal-dark); }
+  .progress-track {
+    height: 8px; border-radius: 5px; background: var(--paper-2);
+    overflow: hidden; margin-bottom: 4px;
+  }
+  .progress-fill { height: 100%; border-radius: 5px; background: var(--jade); transition: width 0.3s ease; }
+  .progress-fill.over { background: var(--seal); }
+  .progress-note { font-size: 11.5px; color: var(--ink-soft); margin: 0 0 16px; }
+
+  .cat-budget-row { margin-bottom: 12px; }
+  .cat-budget-row .head { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; }
+  .cat-budget-row .head .name { color: var(--ink); }
+  .cat-budget-row .head .amt { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .cat-budget-row .head .amt.over { color: var(--seal-dark); font-weight: 700; }
+
+  .budget-cat-field { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .budget-cat-field .lbl { flex: 1; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .budget-cat-field input { width: 110px; text-align: right; }
+    text-align: center;
+    padding: 60px 30px;
+    color: var(--ink-soft);
+  }
+  .empty-state .glyph { font-family: 'Noto Serif TC', serif; font-size: 34px; color: var(--rule); margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; margin: 0; line-height: 1.7; }
+
+  .fab {
+    position: fixed;
+    right: 24px;
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: var(--seal);
+    color: #F7F0E2;
+    border: none;
+    font-size: 28px;
+    font-weight: 400;
+    box-shadow: 0 8px 20px var(--shadow);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    max-width: 460px;
+    margin: 0 auto;
+    left: 0; right: 0;
+    transform: translateX(min(190px, calc((100vw - 460px) / 2 + 190px)));
+  }
+  @media (max-width: 460px) {
+    .fab { transform: none; right: 24px; left: auto; }
+  }
+
+  .sheet-overlay {
+    position: fixed; inset: 0;
+    background: rgba(20,18,12,0.45);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.22s ease;
+    z-index: 20;
+  }
+  .sheet-overlay.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    max-width: 460px; margin: 0 auto;
+    background: var(--paper);
+    border-radius: 18px 18px 0 0;
+    padding: 18px 22px calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%);
+    transition: transform 0.28s cubic-bezier(.32,.72,0,1);
+    z-index: 21;
+    max-height: 86vh;
+    overflow-y: auto;
+    border-top: 1px solid var(--rule);
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet-handle { width: 36px; height: 4px; background: var(--rule); border-radius: 2px; margin: 0 auto 16px; }
+  .sheet h3 { font-family: 'Noto Serif TC', serif; font-size: 19px; margin: 0 0 18px; }
+
+  .type-toggle { display: flex; background: var(--paper-2); border-radius: 10px; padding: 3px; margin-bottom: 18px; }
+  .type-toggle button {
+    flex: 1; border: none; background: none; padding: 10px 0;
+    font-size: 14px; font-weight: 600; color: var(--ink-soft);
+    border-radius: 8px; cursor: pointer; font-family: 'Noto Sans TC', sans-serif;
+  }
+  .type-toggle button.active.expense { background: var(--seal); color: #F7F0E2; }
+  .type-toggle button.active.income { background: var(--jade); color: #F2F5EF; }
+
+  .amt-input-row { text-align: center; margin-bottom: 18px; }
+  .amt-input-row input {
+    width: 100%; border: none; background: none; text-align: center;
+    font-family: 'Noto Serif TC', serif; font-weight: 900; font-size: 44px;
+    color: var(--ink); font-variant-numeric: tabular-nums;
+    outline: none;
+  }
+  .amt-input-row input::placeholder { color: var(--rule); }
+
+  .field-label { font-size: 12px; color: var(--ink-soft); margin: 0 0 8px; }
+  .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+  .cat-chip {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 10px 2px; border-radius: 10px; border: 1px solid var(--rule);
+    background: var(--card); cursor: pointer; font-size: 11.5px; color: var(--ink-soft);
+  }
+  .cat-chip .ic { font-size: 18px; }
+  .cat-chip.active { border-color: var(--gold); background: var(--paper-2); color: var(--ink); font-weight: 600; }
+  .cat-chip.add-chip { border-style: dashed; color: var(--ink-soft); }
+  .cat-chip.add-chip .ic { color: var(--ink-soft); }
+
+  .new-cat-form {
+    display: none;
+    gap: 10px;
+    margin: -6px 0 18px;
+    padding: 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--card);
+  }
+  .new-cat-form.open { display: block; }
+  .new-cat-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .new-cat-row input#newCatIcon {
+    width: 52px; text-align: center; flex: none; font-size: 18px;
+  }
+  .new-cat-actions { display: flex; gap: 8px; }
+  .new-cat-actions .btn { padding: 10px 0; font-size: 13.5px; }
+
+  .row-2 { display: flex; gap: 12px; margin-bottom: 18px; }
+  .row-2 > div { flex: 1; }
+  input[type="date"], input[type="text"] {
+    width: 100%; padding: 11px 12px; border-radius: 8px;
+    border: 1px solid var(--rule); background: var(--card);
+    color: var(--ink); font-family: 'Noto Sans TC', sans-serif; font-size: 14px;
+    outline: none;
+  }
+
+  .sheet-actions { display: flex; gap: 10px; }
+  .btn { flex: 1; padding: 14px 0; border-radius: 10px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Noto Sans TC', sans-serif; }
+  .btn-primary { background: var(--seal); color: #F7F0E2; }
+  .btn-primary.income { background: var(--jade); }
+  .btn-ghost { background: none; color: var(--ink-soft); border: 1px solid var(--rule); }
+  .btn-danger { background: none; color: var(--seal-dark); border: 1px solid var(--seal-dark); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <p class="eyebrow">我的帳本</p>
+    <h1>記帳</h1>
+    <div class="month-row">
+      <button class="month-btn" id="prevMonth" aria-label="上個月">‹</button>
+      <span class="month-label" id="monthLabel">2026年9月</span>
+      <button class="month-btn" id="nextMonth" aria-label="下個月">›</button>
+    </div>
+  </header>
+
+  <div class="ledger-card">
+    <p class="balance-label">本月結餘</p>
+    <p class="balance-amt" id="balanceAmt">NT$ 0</p>
+    <div class="io-row">
+      <div class="io-item">
+        <div class="k"><span class="dot" style="background:var(--jade)"></span>收入</div>
+        <div class="v" id="incomeAmt">0</div>
+      </div>
+      <div class="io-item">
+        <div class="k"><span class="dot" style="background:var(--seal)"></span>支出</div>
+        <div class="v" id="expenseAmt">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>支出分類</h2></div>
+  <div class="breakdown" id="breakdown"></div>
+
+  <div class="section-title"><h2>本月預算</h2><button class="edit-link" id="editBudgetBtn">設定</button></div>
+  <div class="budget-card" id="budgetCard"></div>
+
+  <div class="section-title"><h2>明細</h2><div style="display:flex;align-items:center;gap:10px"><button class="edit-link" id="exportCsvBtn" style="display:none">匯出 CSV</button><span class="count" id="txCount"></span></div></div>
+  <div id="txList"></div>
+</div>
+
+<button class="fab" id="fabAdd" aria-label="新增紀錄">＋</button>
+
+<div class="sheet-overlay" id="overlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <h3 id="sheetTitle">新增紀錄</h3>
+
+  <div class="type-toggle">
+    <button type="button" class="active expense" id="typeExpense">支出</button>
+    <button type="button" class="income" id="typeIncome">收入</button>
+  </div>
+
+  <div class="amt-input-row">
+    <input type="text" inputmode="decimal" id="amtInput" placeholder="NT$ 0">
+  </div>
+
+  <p class="field-label">分類</p>
+  <div class="cat-grid" id="catGrid"></div>
+  <div class="new-cat-form" id="newCatForm">
+    <div class="new-cat-row">
+      <input type="text" id="newCatIcon" maxlength="2" placeholder="🙂">
+      <input type="text" id="newCatName" placeholder="分類名稱" maxlength="8">
+    </div>
+    <div class="new-cat-actions">
+      <button type="button" class="btn btn-ghost" id="newCatCancel">取消</button>
+      <button type="button" class="btn btn-primary" id="newCatConfirm">新增分類</button>
+    </div>
+  </div>
+
+  <div class="row-2">
+    <div>
+      <p class="field-label">日期</p>
+      <input type="date" id="dateInput">
+    </div>
+    <div>
+      <p class="field-label">備註</p>
+      <input type="text" id="noteInput" placeholder="選填">
+    </div>
+  </div>
+
+  <div class="sheet-actions">
+    <button class="btn btn-ghost" id="cancelBtn">取消</button>
+    <button class="btn btn-danger" id="deleteBtn" style="display:none">刪除</button>
+    <button class="btn btn-primary" id="saveBtn">儲存</button>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="budgetOverlay"></div>
+<div class="sheet" id="budgetSheet">
+  <div class="sheet-handle"></div>
+  <h3>預算設定</h3>
+  <p class="field-label">每月總預算</p>
+  <input type="text" inputmode="decimal" id="totalBudgetInput" placeholder="不限制" style="margin-bottom:18px">
+  <p class="field-label">分類預算(選填)</p>
+  <div id="catBudgetList"></div>
+  <div class="sheet-actions">
+    <button class="btn btn-ghost" id="budgetCancelBtn">取消</button>
+    <button class="btn btn-primary" id="budgetSaveBtn">儲存</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var EXP_CATS = [
+    {id:'food', name:'餐飲', ic:'🍚'},
+    {id:'transport', name:'交通', ic:'🚌'},
+    {id:'shopping', name:'購物', ic:'🛍️'},
+    {id:'fun', name:'娛樂', ic:'🎬'},
+    {id:'health', name:'醫療', ic:'💊'},
+    {id:'home', name:'居家', ic:'🏠'},
+    {id:'bill', name:'帳單', ic:'🧾'},
+    {id:'other_e', name:'其他', ic:'✳️'}
+  ];
+  var INC_CATS = [
+    {id:'salary', name:'薪資', ic:'💰'},
+    {id:'bonus', name:'獎金', ic:'🎁'},
+    {id:'invest', name:'投資', ic:'📈'},
+    {id:'other_i', name:'其他', ic:'✳️'}
+  ];
+  var CAT_COLORS = {
+    food:'#B23A2E', transport:'#A8823C', shopping:'#7A5C8E', fun:'#3E7CA6',
+    health:'#4C6B5D', home:'#B0743F', bill:'#5B5647', other_e:'#8E7F6B',
+    salary:'#4C6B5D', bonus:'#A8823C', invest:'#3E7CA6', other_i:'#8E7F6B'
+  };
+  var CUSTOM_PALETTE = ['#6B4C8E','#2E7A6B','#C4622D','#3E5C7C','#8E4C6B','#6B7C2E','#4C6B8E','#8E6B2E'];
+
+  var CAT_STORE_KEY = 'ledger_custom_cats_v1';
+  var customCats = [];
+  try {
+    var rawCats = localStorage.getItem(CAT_STORE_KEY);
+    customCats = rawCats ? JSON.parse(rawCats) : [];
+  } catch(e) { customCats = []; }
+
+  function persistCats(){
+    try { localStorage.setItem(CAT_STORE_KEY, JSON.stringify(customCats)); } catch(e) {}
+  }
+
+  var CAT_MAP = {};
+  function rebuildCatMap(){
+    CAT_MAP = {};
+    EXP_CATS.concat(INC_CATS).concat(customCats).forEach(function(c){ CAT_MAP[c.id] = c; });
+  }
+  rebuildCatMap();
+
+  function catColor(id){
+    if (CAT_COLORS[id]) return CAT_COLORS[id];
+    var idx = customCats.findIndex(function(c){ return c.id === id; });
+    return CUSTOM_PALETTE[Math.max(idx,0) % CUSTOM_PALETTE.length];
+  }
+
+  function catsForType(type){
+    var base = type === 'expense' ? EXP_CATS : INC_CATS;
+    var custom = customCats.filter(function(c){ return c.type === type; });
+    return base.concat(custom);
+  }
+
+  var STORE_KEY = 'ledger_tx_v1';
+  var tx = [];
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    tx = raw ? JSON.parse(raw) : [];
+  } catch(e) { tx = []; }
+
+  function persist(){
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(tx)); } catch(e) {}
+  }
+
+  var BUDGET_KEY = 'ledger_budgets_v1';
+  var budgets = { total: null, cats: {} };
+  try {
+    var rawB = localStorage.getItem(BUDGET_KEY);
+    if (rawB) budgets = JSON.parse(rawB);
+  } catch(e) {}
+
+  function persistBudgets(){
+    try { localStorage.setItem(BUDGET_KEY, JSON.stringify(budgets)); } catch(e) {}
+  }
+
+  var today = new Date();
+  var viewMonth = today.getMonth();
+  var viewYear = today.getFullYear();
+  var editingId = null;
+  var currentType = 'expense';
+  var currentCat = EXP_CATS[0].id;
+
+  var monthLabel = document.getElementById('monthLabel');
+  var balanceAmt = document.getElementById('balanceAmt');
+  var incomeAmt = document.getElementById('incomeAmt');
+  var expenseAmt = document.getElementById('expenseAmt');
+  var breakdownEl = document.getElementById('breakdown');
+  var txList = document.getElementById('txList');
+  var txCount = document.getElementById('txCount');
+
+  function fmt(n){
+    return 'NT$ ' + Math.round(n).toLocaleString('zh-Hant-TW');
+  }
+  function fmtPlain(n){
+    return Math.round(n).toLocaleString('zh-Hant-TW');
+  }
+
+  function monthTx(){
+    return tx.filter(function(t){
+      var d = new Date(t.date);
+      return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
+    });
+  }
+
+  function render(){
+    monthLabel.textContent = viewYear + '年' + (viewMonth+1) + '月';
+    var mtx = monthTx();
+    var income = 0, expense = 0;
+    var byCat = {};
+    mtx.forEach(function(t){
+      if (t.type === 'income') income += t.amount;
+      else {
+        expense += t.amount;
+        byCat[t.category] = (byCat[t.category] || 0) + t.amount;
+      }
+    });
+    balanceAmt.textContent = fmt(income - expense);
+    incomeAmt.textContent = fmtPlain(income);
+    expenseAmt.textContent = fmtPlain(expense);
+
+    renderBreakdown(byCat, expense);
+    renderBudgetCard(byCat, expense);
+    renderList(mtx);
+    txCount.textContent = mtx.length ? mtx.length + ' 筆' : '';
+    exportCsvBtn.style.opacity = mtx.length ? '1' : '0.4';
+    exportCsvBtn.style.pointerEvents = mtx.length ? 'auto' : 'none';
+  }
+
+  function renderBreakdown(byCat, total){
+    var cats = Object.keys(byCat);
+    if (!cats.length) {
+      breakdownEl.className = 'breakdown empty';
+      breakdownEl.innerHTML = '本月尚無支出紀錄';
+      return;
+    }
+    breakdownEl.className = 'breakdown';
+    cats.sort(function(a,b){ return byCat[b] - byCat[a]; });
+
+    var r = 40, cx = 50, cy = 50, circumference = 2 * Math.PI * r;
+    var offset = 0;
+    var arcs = '';
+    cats.forEach(function(id){
+      var frac = byCat[id] / total;
+      var len = frac * circumference;
+      arcs += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+catColor(id)+'" stroke-width="14" ' +
+        'stroke-dasharray="'+len+' '+(circumference-len)+'" stroke-dashoffset="'+(-offset)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+      offset += len;
+    });
+    var svg = '<div class="donut-wrap"><svg width="100" height="100" viewBox="0 0 100 100">'+arcs+
+      '<circle cx="50" cy="50" r="33" fill="var(--card)"/></svg></div>';
+
+    var legend = '<div class="legend">' + cats.slice(0,6).map(function(id){
+      var c = CAT_MAP[id];
+      var pct = Math.round(byCat[id] / total * 100);
+      return '<div class="legend-row"><span class="sw" style="background:'+catColor(id)+'"></span>' +
+        '<span class="name">'+c.ic+' '+c.name+'</span><span class="pct">'+pct+'%</span></div>';
+    }).join('') + '</div>';
+
+    breakdownEl.innerHTML = svg + legend;
+  }
+
+  var budgetCardEl = document.getElementById('budgetCard');
+
+  function renderBudgetCard(byCat, totalSpent){
+    var hasCatBudgets = Object.keys(budgets.cats || {}).some(function(id){ return budgets.cats[id] > 0; });
+    if (!budgets.total && !hasCatBudgets) {
+      budgetCardEl.className = 'budget-card empty';
+      budgetCardEl.innerHTML = '尚未設定預算<br>設定後會在超支時提醒你' +
+        '<div><button class="edit-link" id="emptyBudgetBtn">立即設定</button></div>';
+      document.getElementById('emptyBudgetBtn').addEventListener('click', openBudgetSheet);
+      return;
+    }
+    budgetCardEl.className = 'budget-card';
+    var html = '';
+    var overList = [];
+
+    if (budgets.total) {
+      var pct = Math.min(100, (totalSpent / budgets.total) * 100);
+      var over = totalSpent > budgets.total;
+      if (over) overList.push('總預算');
+      html += '<div class="budget-total-row"><span class="lbl">總預算</span>' +
+        '<span class="val'+(over?' over':'')+'">'+fmtPlain(totalSpent)+' / '+fmtPlain(budgets.total)+'</span></div>' +
+        '<div class="progress-track"><div class="progress-fill'+(over?' over':'')+'" style="width:'+pct+'%"></div></div>' +
+        '<p class="progress-note">'+(over ? '已超出 NT$ '+fmtPlain(totalSpent-budgets.total) : '剩餘 NT$ '+fmtPlain(budgets.total-totalSpent))+'</p>';
+    }
+
+    var catIds = Object.keys(budgets.cats || {}).filter(function(id){ return budgets.cats[id] > 0; });
+    if (catIds.length) {
+      catIds.forEach(function(id){
+        var b = budgets.cats[id];
+        var spent = byCat[id] || 0;
+        var pct = Math.min(100, (spent / b) * 100);
+        var over = spent > b;
+        var c = CAT_MAP[id];
+        if (!c) return;
+        if (over) overList.push(c.name);
+        html += '<div class="cat-budget-row"><div class="head"><span class="name">'+c.ic+' '+c.name+'</span>' +
+          '<span class="amt'+(over?' over':'')+'">'+fmtPlain(spent)+' / '+fmtPlain(b)+'</span></div>' +
+          '<div class="progress-track"><div class="progress-fill'+(over?' over':'')+'" style="width:'+pct+'%"></div></div></div>';
+      });
+    }
+
+    if (overList.length) {
+      var msg = overList.length === 1
+        ? overList[0] + ' 已超出預算'
+        : overList.slice(0,3).join('、') + (overList.length > 3 ? ' 等' : '') + ' 已超出預算';
+      html = '<div class="budget-alert">⚠️ ' + msg + '</div>' + html;
+    }
+
+    budgetCardEl.innerHTML = html;
+  }
+
+  function renderList(mtx){
+    if (!mtx.length) {
+      txList.innerHTML = '<div class="empty-state"><div class="glyph">記</div><p>這個月還沒有任何紀錄<br>點右下角的印章開始記帳</p></div>';
+      return;
+    }
+    var sorted = mtx.slice().sort(function(a,b){ return b.date.localeCompare(a.date) || b.id - a.id; });
+    var groups = {};
+    var order = [];
+    sorted.forEach(function(t){
+      if (!groups[t.date]) { groups[t.date] = []; order.push(t.date); }
+      groups[t.date].push(t);
+    });
+    var html = '';
+    order.forEach(function(date){
+      var items = groups[date];
+      var dayTotal = items.reduce(function(s,t){ return s + (t.type==='income'? t.amount : -t.amount); }, 0);
+      var d = new Date(date);
+      var wd = ['日','一','二','三','四','五','六'][d.getDay()];
+      html += '<div class="day-group"><div class="day-head"><span>' + (d.getMonth()+1) + '月' + d.getDate() + '日 週' + wd + '</span>' +
+        '<span>' + (dayTotal >= 0 ? '+' : '') + fmtPlain(dayTotal) + '</span></div>';
+      items.forEach(function(t){
+        var c = CAT_MAP[t.category] || {ic:'✳️', name:t.category};
+        html += '<div class="tx-row" data-id="'+t.id+'">' +
+          '<div class="tx-icon">'+c.ic+'</div>' +
+          '<div class="tx-mid"><div class="tx-cat">'+c.name+'</div>' +
+          (t.note ? '<div class="tx-note">'+escapeHtml(t.note)+'</div>' : '') + '</div>' +
+          '<div class="tx-amt '+t.type+'">'+(t.type==='income'?'+':'-')+fmtPlain(t.amount)+'</div></div>';
+      });
+      html += '</div>';
+    });
+    txList.innerHTML = html;
+    txList.querySelectorAll('.tx-row').forEach(function(row){
+      row.addEventListener('click', function(){
+        openSheet(row.getAttribute('data-id'));
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Sheet logic
+  var overlay = document.getElementById('overlay');
+  var sheet = document.getElementById('sheet');
+  var catGrid = document.getElementById('catGrid');
+  var amtInput = document.getElementById('amtInput');
+  var dateInput = document.getElementById('dateInput');
+  var noteInput = document.getElementById('noteInput');
+  var deleteBtn = document.getElementById('deleteBtn');
+  var sheetTitle = document.getElementById('sheetTitle');
+  var typeExpBtn = document.getElementById('typeExpense');
+  var typeIncBtn = document.getElementById('typeIncome');
+  var saveBtn = document.getElementById('saveBtn');
+
+  function renderCatGrid(){
+    var list = catsForType(currentType);
+    catGrid.innerHTML = list.map(function(c){
+      return '<div class="cat-chip'+(c.id===currentCat?' active':'')+'" data-cat="'+c.id+'">' +
+        '<span class="ic">'+c.ic+'</span><span>'+c.name+'</span></div>';
+    }).join('') + '<div class="cat-chip add-chip" id="addCatChip"><span class="ic">＋</span><span>新增分類</span></div>';
+    catGrid.querySelectorAll('.cat-chip[data-cat]').forEach(function(el){
+      el.addEventListener('click', function(){
+        currentCat = el.getAttribute('data-cat');
+        closeNewCatForm();
+        renderCatGrid();
+      });
+    });
+    document.getElementById('addCatChip').addEventListener('click', openNewCatForm);
+  }
+
+  var newCatForm = document.getElementById('newCatForm');
+  var newCatIcon = document.getElementById('newCatIcon');
+  var newCatName = document.getElementById('newCatName');
+
+  function openNewCatForm(){
+    newCatForm.classList.add('open');
+    newCatIcon.value = '';
+    newCatName.value = '';
+    setTimeout(function(){ newCatName.focus(); }, 50);
+  }
+  function closeNewCatForm(){
+    newCatForm.classList.remove('open');
+  }
+  document.getElementById('newCatCancel').addEventListener('click', closeNewCatForm);
+  document.getElementById('newCatConfirm').addEventListener('click', function(){
+    var name = newCatName.value.trim();
+    if (!name) { newCatName.focus(); return; }
+    var icon = newCatIcon.value.trim() || '🏷️';
+    var id = 'c_' + Date.now();
+    var newCat = { id: id, name: name, ic: icon, type: currentType };
+    customCats.push(newCat);
+    persistCats();
+    rebuildCatMap();
+    currentCat = id;
+    closeNewCatForm();
+    renderCatGrid();
+  });
+
+  function setType(type){
+    currentType = type;
+    typeExpBtn.classList.toggle('active', type==='expense');
+    typeIncBtn.classList.toggle('active', type==='income');
+    saveBtn.classList.toggle('income', type==='income');
+    var list = catsForType(type);
+    if (!list.some(function(c){ return c.id === currentCat; })) {
+      currentCat = list[0].id;
+    }
+    closeNewCatForm();
+    renderCatGrid();
+  }
+
+  function openSheet(id){
+    editingId = id || null;
+    if (id) {
+      var t = tx.find(function(x){ return String(x.id) === String(id); });
+      if (!t) return;
+      sheetTitle.textContent = '編輯紀錄';
+      setType(t.type);
+      currentCat = t.category;
+      renderCatGrid();
+      amtInput.value = t.amount;
+      dateInput.value = t.date;
+      noteInput.value = t.note || '';
+      deleteBtn.style.display = 'block';
+    } else {
+      sheetTitle.textContent = '新增紀錄';
+      setType('expense');
+      amtInput.value = '';
+      dateInput.value = new Date(viewYear, viewMonth, Math.min(today.getDate(), 28)).toISOString().slice(0,10);
+      if (viewMonth === today.getMonth() && viewYear === today.getFullYear()) {
+        dateInput.value = today.toISOString().slice(0,10);
+      }
+      noteInput.value = '';
+      deleteBtn.style.display = 'none';
+    }
+    overlay.classList.add('open');
+    sheet.classList.add('open');
+    setTimeout(function(){ amtInput.focus(); }, 200);
+  }
+
+  function closeSheet(){
+    overlay.classList.remove('open');
+    sheet.classList.remove('open');
+    editingId = null;
+  }
+
+  overlay.addEventListener('click', closeSheet);
+  document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+  document.getElementById('fabAdd').addEventListener('click', function(){ openSheet(null); });
+  typeExpBtn.addEventListener('click', function(){ setType('expense'); });
+  typeIncBtn.addEventListener('click', function(){ setType('income'); });
+
+  amtInput.addEventListener('input', function(){
+    amtInput.value = amtInput.value.replace(/[^0-9.]/g, '');
+  });
+
+  saveBtn.addEventListener('click', function(){
+    var amount = parseFloat(amtInput.value);
+    if (!amount || amount <= 0) { amtInput.focus(); return; }
+    if (!dateInput.value) { dateInput.focus(); return; }
+    if (editingId) {
+      var t = tx.find(function(x){ return String(x.id) === String(editingId); });
+      t.type = currentType; t.category = currentCat; t.amount = amount;
+      t.date = dateInput.value; t.note = noteInput.value.trim();
+    } else {
+      tx.push({
+        id: Date.now(),
+        type: currentType,
+        category: currentCat,
+        amount: amount,
+        date: dateInput.value,
+        note: noteInput.value.trim()
+      });
+    }
+    persist();
+    closeSheet();
+    var d = new Date(dateInput.value);
+    viewYear = d.getFullYear(); viewMonth = d.getMonth();
+    render();
+  });
+
+  deleteBtn.addEventListener('click', function(){
+    tx = tx.filter(function(x){ return String(x.id) !== String(editingId); });
+    persist();
+    closeSheet();
+    render();
+  });
+
+  document.getElementById('prevMonth').addEventListener('click', function(){
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    render();
+  });
+  document.getElementById('nextMonth').addEventListener('click', function(){
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    render();
+  });
+
+  // Budget sheet
+  var budgetOverlay = document.getElementById('budgetOverlay');
+  var budgetSheet = document.getElementById('budgetSheet');
+  var totalBudgetInput = document.getElementById('totalBudgetInput');
+  var catBudgetList = document.getElementById('catBudgetList');
+
+  function openBudgetSheet(){
+    totalBudgetInput.value = budgets.total || '';
+    var cats = EXP_CATS.concat(customCats.filter(function(c){ return c.type === 'expense'; }));
+    catBudgetList.innerHTML = cats.map(function(c){
+      var v = (budgets.cats || {})[c.id] || '';
+      return '<div class="budget-cat-field"><span class="lbl">'+c.ic+' '+c.name+'</span>' +
+        '<input type="text" inputmode="decimal" data-cat="'+c.id+'" placeholder="不限制" value="'+v+'"></div>';
+    }).join('');
+    catBudgetList.querySelectorAll('input').forEach(function(inp){
+      inp.addEventListener('input', function(){ inp.value = inp.value.replace(/[^0-9.]/g, ''); });
+    });
+    budgetOverlay.classList.add('open');
+    budgetSheet.classList.add('open');
+  }
+  function closeBudgetSheet(){
+    budgetOverlay.classList.remove('open');
+    budgetSheet.classList.remove('open');
+  }
+  document.getElementById('editBudgetBtn').addEventListener('click', openBudgetSheet);
+  document.getElementById('budgetCancelBtn').addEventListener('click', closeBudgetSheet);
+  budgetOverlay.addEventListener('click', closeBudgetSheet);
+  totalBudgetInput.addEventListener('input', function(){
+    totalBudgetInput.value = totalBudgetInput.value.replace(/[^0-9.]/g, '');
+  });
+  document.getElementById('budgetSaveBtn').addEventListener('click', function(){
+    var t = parseFloat(totalBudgetInput.value);
+    budgets.total = (t && t > 0) ? t : null;
+    var newCats = {};
+    catBudgetList.querySelectorAll('input').forEach(function(inp){
+      var v = parseFloat(inp.value);
+      if (v && v > 0) newCats[inp.getAttribute('data-cat')] = v;
+    });
+    budgets.cats = newCats;
+    persistBudgets();
+    closeBudgetSheet();
+    render();
+  });
+
+  // CSV export
+  var exportCsvBtn = document.getElementById('exportCsvBtn');
+  var downloadsCap = null;
+  (function initDownloads(){
+    try {
+      if (window.claude && window.claude.use) {
+        window.claude.use('downloads').then(function(cap){ downloadsCap = cap; }).catch(function(){});
+      }
+    } catch(e) {}
+  })();
+  exportCsvBtn.style.display = 'block';
+
+  function pad2(n){ return n < 10 ? '0'+n : ''+n; }
+  function csvEscape(v){
+    v = String(v);
+    if (/[",\r\n]/.test(v)) v = '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  }
+  function buildCSV(rows){
+    var header = ['日期','類型','分類','金額','備註'];
+    var lines = [header.map(csvEscape).join(',')];
+    rows.forEach(function(t){
+      var c = CAT_MAP[t.category] || { name: t.category };
+      var fields = [t.date, t.type === 'income' ? '收入' : '支出', c.name, t.amount, t.note || ''];
+      lines.push(fields.map(csvEscape).join(','));
+    });
+    return '\ufeff' + lines.join('\r\n');
+  }
+  function browserDownload(filename, csv){
+    try {
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    } catch(e) {}
+  }
+
+  exportCsvBtn.addEventListener('click', function(){
+    var mtx = monthTx();
+    if (!mtx.length) return;
+    var sorted = mtx.slice().sort(function(a,b){ return a.date.localeCompare(b.date) || a.id - b.id; });
+    var csv = buildCSV(sorted);
+    var filename = viewYear + '-' + pad2(viewMonth + 1) + ' 記帳明細.csv';
+    if (downloadsCap) {
+      downloadsCap.save({ filename: filename, data: csv }).catch(function(){ browserDownload(filename, csv); });
+    } else {
+      browserDownload(filename, csv);
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){});
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "記帳本",
+  "short_name": "記帳",
+  "description": "簡單好用的個人記帳本，支援自訂分類、預算提醒與 CSV 匯出。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EFEAD9",
+  "theme_color": "#EFEAD9",
+  "lang": "zh-Hant-TW",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
